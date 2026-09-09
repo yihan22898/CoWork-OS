@@ -177,7 +177,7 @@ export function GuardrailSettings() {
             className="settings-input settings-input-number"
             value={settings.maxTokensPerTask}
             onChange={(e) =>
-              setSettings({ ...settings, maxTokensPerTask: parseInt(e.target.value) || 100000 })
+              setSettings({ ...settings, maxTokensPerTask: parseInt(e.target.value) || 200000 })
             }
             min={1000}
             max={10000000}
@@ -186,7 +186,7 @@ export function GuardrailSettings() {
           />
         </div>
         <p className="settings-hint">
-          Typical tasks use 5,000-50,000 tokens. Default: 100,000 (about $0.30-$7.50 depending on
+          Typical tasks use 5,000-50,000 tokens. Default: 200,000 (about $0.30-$7.50 depending on
           model)
         </p>
       </div>

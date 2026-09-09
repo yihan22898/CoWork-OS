@@ -412,7 +412,7 @@ describe("GuardrailSettingsSchema", () => {
     const result = GuardrailSettingsSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.maxTokensPerTask).toBe(100000);
+      expect(result.data.maxTokensPerTask).toBe(200000);
       expect(result.data.tokenBudgetEnabled).toBe(true);
       expect(result.data.blockDangerousCommands).toBe(true);
       expect(result.data.maxIterationsPerTask).toBe(50);

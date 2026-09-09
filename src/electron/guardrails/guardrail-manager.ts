@@ -16,10 +16,11 @@ import { SecureSettingsRepository } from "../database/SecureSettingsRepository";
 import { getUserDataDir } from "../utils/user-data-dir";
 
 const LEGACY_SETTINGS_FILE = "guardrail-settings.json";
+const PREVIOUS_DEFAULT_MAX_TOKENS_PER_TASK = 100000;
 
 const DEFAULT_SETTINGS: GuardrailSettings = {
   // Token Budget
-  maxTokensPerTask: 100000,
+  maxTokensPerTask: 200000,
   tokenBudgetEnabled: true,
 
   // Cost Budget
@@ -171,6 +172,10 @@ export class GuardrailManager {
         const stored = repository.load<GuardrailSettings>("guardrails");
         if (stored) {
           this.cachedSettings = { ...DEFAULT_SETTINGS, ...stored };
+          if (stored.maxTokensPerTask === PREVIOUS_DEFAULT_MAX_TOKENS_PER_TASK) {
+            this.cachedSettings.maxTokensPerTask = DEFAULT_SETTINGS.maxTokensPerTask;
+            repository.save("guardrails", this.cachedSettings);
+          }
           return this.cachedSettings;
         }
       }

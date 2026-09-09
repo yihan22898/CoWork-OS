@@ -1183,7 +1183,7 @@ export const SharePointSettingsSchema = z.object({
 
 export const GuardrailSettingsSchema = z.object({
   // Token budget
-  maxTokensPerTask: z.number().int().min(1000).max(10000000).default(100000),
+  maxTokensPerTask: z.number().int().min(1000).max(10000000).default(200000),
   tokenBudgetEnabled: z.boolean().default(true),
 
   // Cost budget
