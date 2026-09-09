@@ -267,7 +267,7 @@ function detectLinuxDistro(): LinuxDistroInfo {
   let idLike = "";
   try {
     const raw = readFileSync("/etc/os-release", "utf8");
-    for (const line of raw.splitlines()) {
+    for (const line of raw.split("\n")) {
       const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
       if (!m) continue;
       const key = m[1];

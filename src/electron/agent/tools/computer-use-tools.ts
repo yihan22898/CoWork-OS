@@ -84,6 +84,7 @@ const BLOCKED_KEY_COMBOS_BY_PLATFORM: Record<NodeJS.Platform, ReadonlySet<string
   cygwin: new Set(["ctrl+alt+delete"]),
   netbsd: new Set(["ctrl+alt+delete"]),
   haiku: new Set(["ctrl+alt+delete"]),
+  android: new Set(["ctrl+alt+delete"]),
 };
 
 function blockedKeyCombos(platform: NodeJS.Platform): ReadonlySet<string> {
