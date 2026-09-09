@@ -1224,7 +1224,7 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
         case "kimi":
           return !!existingSettings.kimi?.apiKey;
         case "minimax":
-          return !!existingSettings.customProviders?.minimax?.apiKey;
+          return !!existingSettings.customProviders?.["minimax"]?.apiKey;
         case "nano-gpt":
           return !!existingSettings.customProviders?.["nano-gpt"]?.apiKey;
         default:
@@ -1320,10 +1320,10 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
         settings.customProviders = {
           ...existingSettings?.customProviders,
           minimax: {
-            ...existingSettings?.customProviders?.minimax,
+            ...existingSettings?.customProviders?.["minimax"],
             ...(trimmedApiKey ? { apiKey: trimmedApiKey } : {}),
             baseUrl:
-              existingSettings?.customProviders?.minimax?.baseUrl ||
+              existingSettings?.customProviders?.["minimax"]?.baseUrl ||
               "https://api.minimax.io/v1",
             model: modelKey,
           },
