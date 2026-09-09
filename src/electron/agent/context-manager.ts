@@ -30,6 +30,9 @@ function inferModelLimit(modelKey: string): number | null {
   const key = modelKey.toLowerCase().trim();
   if (!key) return null;
 
+  if (key.includes("minimax-m3")) return 200000;
+  if (key.includes("minimax-m2.7-highspeed")) return 20000;
+
   // Anthropic raw ids: e.g. "claude-3-5-sonnet-latest"
   if (
     key.startsWith("claude-") ||
