@@ -122,6 +122,7 @@ const SCRIPT = {
       xai: "Grok. Let's put xAI to work.",
       deepseek: "DeepSeek. Practical and cost-efficient.",
       kimi: "Kimi. Solid choice.",
+      minimax: "MiniMax. High intelligence at scale.",
       "nano-gpt": "NanoGPT. Flexible model routing.",
     };
     return responses[provider] || "Good choice.";
@@ -324,6 +325,8 @@ export function getOnboardingDefaultModel(provider: LLMProviderType): string {
       return "deepseek-chat";
     case "kimi":
       return "kimi-k2.5";
+    case "minimax":
+      return "MiniMax-M2.1";
     case "nano-gpt":
       return "minimax/minimax-m2.7";
     default:
@@ -360,6 +363,14 @@ export function buildOnboardingLLMTestConfig(
     testConfig.deepseek = { apiKey, model: modelKey };
   } else if (provider === "kimi") {
     testConfig.kimi = { apiKey };
+  } else if (provider === "minimax") {
+    testConfig.customProviders = {
+      minimax: {
+        apiKey,
+        baseUrl: "https://api.minimax.io/v1",
+        model: modelKey,
+      },
+    };
   } else if (provider === "nano-gpt") {
     testConfig.customProviders = {
       "nano-gpt": {
@@ -1156,6 +1167,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
         case "kimi":
           currentModel = existingSettings.kimi?.model;
           break;
+        case "minimax":
+          currentModel = existingSettings.customProviders?.minimax?.model;
+          break;
         case "nano-gpt":
           currentModel = existingSettings.customProviders?.["nano-gpt"]?.model;
           break;
@@ -1209,6 +1223,8 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
           return !!existingSettings.deepseek?.apiKey;
         case "kimi":
           return !!existingSettings.kimi?.apiKey;
+        case "minimax":
+          return !!existingSettings.customProviders?.minimax?.apiKey;
         case "nano-gpt":
           return !!existingSettings.customProviders?.["nano-gpt"]?.apiKey;
         default:
@@ -1299,6 +1315,18 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
           ...existingSettings?.kimi,
           ...(trimmedApiKey ? { apiKey: trimmedApiKey } : {}),
           model: modelKey,
+        };
+      } else if (provider === "minimax") {
+        settings.customProviders = {
+          ...existingSettings?.customProviders,
+          minimax: {
+            ...existingSettings?.customProviders?.minimax,
+            ...(trimmedApiKey ? { apiKey: trimmedApiKey } : {}),
+            baseUrl:
+              existingSettings?.customProviders?.minimax?.baseUrl ||
+              "https://api.minimax.io/v1",
+            model: modelKey,
+          },
         };
       } else if (provider === "nano-gpt") {
         settings.customProviders = {

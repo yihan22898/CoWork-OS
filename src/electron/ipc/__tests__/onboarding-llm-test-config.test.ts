@@ -21,4 +21,25 @@ describe("buildOnboardingLLMTestConfig", () => {
     });
     expect(LLMSettingsSchema.safeParse(config).success).toBe(true);
   });
+
+  it("builds correct config for minimax with default model and customProviders", () => {
+    const config = buildOnboardingLLMTestConfig(
+      "minimax",
+      "minimax-test-key",
+      "http://localhost:11434",
+    );
+
+    expect(config).toMatchObject({
+      providerType: "minimax",
+      modelKey: "MiniMax-M2.1",
+      customProviders: {
+        minimax: {
+          apiKey: "minimax-test-key",
+          baseUrl: "https://api.minimax.io/v1",
+          model: "MiniMax-M2.1",
+        },
+      },
+    });
+    expect(LLMSettingsSchema.safeParse(config).success).toBe(true);
+  });
 });

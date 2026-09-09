@@ -23,6 +23,7 @@ type LLMProviderType =
   | "xai"
   | "deepseek"
   | "kimi"
+  | "minimax"
   | "nano-gpt";
 
 interface ProviderOption {
@@ -234,6 +235,26 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
     requiresApiKey: true,
     apiKeyPlaceholder: "sk-...",
     apiKeyLink: "https://platform.moonshot.ai/",
+  },
+  {
+    type: "minimax",
+    name: "MiniMax",
+    description: "MiniMax M2.1 & M2.7 models",
+    icon: (
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7z" />
+      </svg>
+    ),
+    requiresApiKey: true,
+    apiKeyPlaceholder: "minimax-...",
+    apiKeyLink: "https://www.minimaxi.com/user-center/basic-information/interface-key",
   },
   {
     type: "nano-gpt",
@@ -470,6 +491,14 @@ export function OnboardingModal({
         testConfig.deepseek = { apiKey, model: "deepseek-chat" };
       } else if (selectedProvider === "kimi") {
         testConfig.kimi = { apiKey };
+      } else if (selectedProvider === "minimax") {
+        testConfig.customProviders = {
+          minimax: {
+            apiKey,
+            baseUrl: "https://api.minimax.io/v1",
+            model: "MiniMax-M2.1",
+          },
+        };
       } else if (selectedProvider === "nano-gpt") {
         testConfig.customProviders = {
           "nano-gpt": {
@@ -518,6 +547,14 @@ export function OnboardingModal({
           settings.deepseek = { apiKey, model: "deepseek-chat" };
         } else if (selectedProvider === "kimi") {
           settings.kimi = { apiKey, model: "kimi-k2.5" };
+        } else if (selectedProvider === "minimax") {
+          settings.customProviders = {
+            minimax: {
+              apiKey,
+              baseUrl: "https://api.minimax.io/v1",
+              model: "MiniMax-M2.1",
+            },
+          };
         } else if (selectedProvider === "nano-gpt") {
           settings.customProviders = {
             "nano-gpt": {
@@ -578,6 +615,8 @@ export function OnboardingModal({
         return "deepseek-chat";
       case "kimi":
         return "kimi-k2.5";
+      case "minimax":
+        return "MiniMax-M2.1";
       case "nano-gpt":
         return "minimax/minimax-m2.7";
       default:
