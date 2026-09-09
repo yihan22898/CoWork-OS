@@ -89,13 +89,21 @@ describe("ComputerUseTools platform exposure", () => {
     expect(tools).toContain("type_text");
   });
 
+  it("exposes computer-use tools on Linux desktop builds", () => {
+    setPlatform("linux");
+    const tools = ComputerUseTools.getToolDefinitions({ headless: false }).map((tool) => tool.name);
+    expect(tools).toContain("screenshot");
+    expect(tools).toContain("click");
+    expect(tools).toContain("type_text");
+  });
+
   it("hides computer-use tools in headless mode", () => {
     setPlatform("win32");
     expect(ComputerUseTools.getToolDefinitions({ headless: true })).toEqual([]);
   });
 
   it("hides computer-use tools on unsupported desktop platforms", () => {
-    setPlatform("linux");
+    setPlatform("aix");
     expect(ComputerUseTools.getToolDefinitions({ headless: false })).toEqual([]);
   });
 

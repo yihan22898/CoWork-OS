@@ -17,7 +17,7 @@ export interface ComputerUseProvider {
   getHelperPath(): string;
   getHelperSourcePath(): string | null;
   getStatus(): Promise<ComputerUseHelperStatus>;
-  ensureReadyWithInteractivePermissions(): Promise<void>;
+  ensureReadyWithInteractivePermissions(taskId?: string): Promise<void>;
   stop(): void;
   listApps(): Promise<ComputerUseHelperApp[]>;
   listWindows(pid: number): Promise<ComputerUseHelperWindow[]>;

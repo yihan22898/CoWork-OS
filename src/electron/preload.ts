@@ -7351,6 +7351,18 @@ export interface ElectronAPI {
     installed: boolean;
     accessibilityTrusted: boolean;
     screenCaptureStatus: string;
+    linux?: {
+      pythonAvailable: boolean;
+      displayAuth: boolean;
+      convertAvailable: boolean;
+      tools: {
+        wmctrl: boolean;
+        xdotool: boolean;
+        scrot: boolean;
+        import: boolean;
+        convert: boolean;
+      };
+    };
     error: string | null;
   }>;
   endComputerUseSession: () => Promise<{ success: boolean }>;

@@ -1,11 +1,13 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "child_process";
 import { createHash } from "crypto";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { access, chmod, mkdir, readFile, writeFile } from "fs/promises";
 import { constants as fsConstants } from "fs";
+import * as os from "os";
 import * as path from "path";
 import { getUserDataDir } from "../utils/user-data-dir";
 import type { ComputerUseProvider } from "./provider";
+import { ComputerUseSessionManager } from "./session-manager";
 
 type Any = any; // oxlint-disable-line typescript-eslint/no-explicit-any
 
@@ -22,7 +24,23 @@ export interface ComputerUseHelperStatus {
   installed: boolean;
   accessibility: boolean;
   screenRecording: boolean;
+  linux?: ComputerUseLinuxStatus;
   error?: string;
+}
+
+export interface ComputerUseLinuxToolsStatus {
+  wmctrl: boolean;
+  xdotool: boolean;
+  scrot: boolean;
+  import: boolean;
+  convert: boolean;
+}
+
+export interface ComputerUseLinuxStatus {
+  pythonAvailable: boolean;
+  displayAuth: boolean;
+  convertAvailable: boolean;
+  tools: ComputerUseLinuxToolsStatus;
 }
 
 export interface ComputerUseHelperApp {
@@ -164,8 +182,15 @@ function isPackagedElectronApp(): boolean {
 }
 
 function getBundledHelperSourcePath(): string | null {
-  if (process.platform !== "darwin" && process.platform !== "win32") return null;
-  const fileName = process.platform === "win32" ? "bridge.ps1" : "bridge.swift";
+  if (process.platform !== "darwin" && process.platform !== "win32" && process.platform !== "linux") {
+    return null;
+  }
+  const fileName =
+    process.platform === "win32"
+      ? "bridge.ps1"
+      : process.platform === "linux"
+        ? "bridge.py"
+        : "bridge.swift";
   const candidates: string[] = [];
   if (
     isPackagedElectronApp() &&
@@ -208,6 +233,87 @@ function getElectronDialog(): {
 
 function sha256(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+function parseLinuxStatus(result: Record<string, unknown>): ComputerUseLinuxStatus {
+  const record =
+    result && typeof result === "object" ? (result as Record<string, unknown>) : ({} as Record<string, unknown>);
+  return {
+    pythonAvailable: record.pythonAvailable === true,
+    displayAuth: record.displayAuth === true,
+    convertAvailable: record.convertAvailable === true,
+    tools: parseLinuxToolsStatus(record.tools),
+  };
+}
+
+function parseLinuxToolsStatus(raw: unknown): ComputerUseLinuxToolsStatus {
+  const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  return {
+    wmctrl: record?.wmctrl === true,
+    xdotool: record?.xdotool === true,
+    scrot: record?.scrot === true,
+    import: record?.import === true,
+    convert: record?.convert === true,
+  };
+}
+
+interface LinuxDistroInfo {
+  family: "apt" | "dnf" | "pacman" | "zypper" | "apk" | "unknown";
+  installCmd: string;
+}
+
+function detectLinuxDistro(): LinuxDistroInfo {
+  let id = "";
+  let idLike = "";
+  try {
+    const raw = readFileSync("/etc/os-release", "utf8");
+    for (const line of raw.splitlines()) {
+      const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+      if (!m) continue;
+      const key = m[1];
+      let value = m[2];
+      if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+      if (key === "ID") id = value.toLowerCase();
+      else if (key === "ID_LIKE") idLike = value.toLowerCase();
+    }
+  } catch {
+    // /etc/os-release missing or unreadable
+  }
+  const combined = `${id} ${idLike}`;
+  if (/ubuntu|debian|pop|mint|kde neon|elementary|zorin/.test(combined)) {
+    return {
+      family: "apt",
+      installCmd: "sudo apt install wmctrl xdotool scrot imagemagick python3",
+    };
+  }
+  if (/fedora|rhel|centos|rocky|alma|amazon/.test(combined)) {
+    return {
+      family: "dnf",
+      installCmd: "sudo dnf install wmctrl xdotool scrot ImageMagick python3",
+    };
+  }
+  if (/arch|manjaro|endeavouros/.test(combined)) {
+    return {
+      family: "pacman",
+      installCmd: "sudo pacman -S --needed wmctrl xdotool scrot imagemagick python",
+    };
+  }
+  if (/suse|opensuse/.test(combined)) {
+    return {
+      family: "zypper",
+      installCmd: "sudo zypper install wmctrl xdotool scrot imagemagick python3",
+    };
+  }
+  if (/alpine/.test(combined)) {
+    return {
+      family: "apk",
+      installCmd: "sudo apk add wmctrl xdotool scrot imagemagick python3",
+    };
+  }
+  return {
+    family: "unknown",
+    installCmd: "Install wmctrl, xdotool, scrot (or ImageMagick), and python3 for your distribution.",
+  };
 }
 
 function resolvePowerShellCommand(): string {
@@ -263,7 +369,9 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
     }
 
     try {
-      if (process.platform === "win32") {
+      // Win32 and Linux both install-on-status so a fresh userData dir or first-launch
+      // scenario reports accurate permission diagnostics instead of just `installed: true`.
+      if (process.platform === "win32" || process.platform === "linux") {
         await this.ensureHelperInstalled();
       }
       const status = await this.checkPermissions();
@@ -274,6 +382,7 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
         installed: true,
         accessibility: status.accessibility,
         screenRecording: status.screenRecording,
+        ...(status.linux ? { linux: status.linux } : {}),
       };
     } catch (error) {
       return {
@@ -288,14 +397,16 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
     }
   }
 
-  async ensureReadyWithInteractivePermissions(): Promise<void> {
-    if (process.platform !== "darwin" && process.platform !== "win32") {
-      throw new Error("Computer use is only supported on macOS and Windows desktop builds.");
+  async ensureReadyWithInteractivePermissions(taskId?: string): Promise<void> {
+    if (process.platform !== "darwin" && process.platform !== "win32" && process.platform !== "linux") {
+      throw new Error("Computer use is only supported on macOS, Windows, and Linux X11 desktop builds.");
     }
     await this.ensureHelperInstalled();
     await this.ensureHelperProcess();
     if (process.platform === "darwin") {
       await this.ensurePermissionsInteractive();
+    } else if (process.platform === "linux") {
+      await this.ensureLinuxPermissionsInteractive(taskId ?? "");
     }
   }
 
@@ -621,6 +732,26 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
       return;
     }
 
+    if (process.platform === "linux") {
+      await writeFile(HELPER_PATH, source, "utf8");
+      await chmod(HELPER_PATH, 0o755);
+      await writeFile(HELPER_STAMP_PATH, `${nextStamp}\n`, "utf8");
+      // Catch shipping Python syntax errors at install time rather than at first
+      // spawn, when the user sees only a generic "helper exited" transport error.
+      const pythonCheck = spawnSync(
+        "python3",
+        ["-c", `import ast,sys; ast.parse(open(${JSON.stringify(HELPER_PATH)}).read()); print("ok")`],
+        { encoding: "utf8", timeout: 5_000 },
+      );
+      if (pythonCheck.status !== 0) {
+        const detail = (pythonCheck.stderr || pythonCheck.stdout || "").trim();
+        throw new Error(
+          `Computer-use helper failed Python syntax check before first run.${detail ? `\n${detail}` : ""}`,
+        );
+      }
+      return;
+    }
+
     const compileArgs = [
       "swiftc",
       "-O",
@@ -663,6 +794,20 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
       throw new HelperTransportError(`Computer-use helper is missing at ${HELPER_PATH}.`);
     }
 
+    // Linux X11 + IMEs need IM modules disabled so xdotool type doesn't reorder
+    // characters under IBus/Fcitx. XAUTHORITY falls back to ~/.Xauthority because
+    // Electron apps launched from .desktop files often lose the parent's cookie.
+    const linuxEnv =
+      process.platform === "linux"
+        ? {
+            ...process.env,
+            XMODIFIERS: "@im=none",
+            GTK_IM_MODULE: "none",
+            QT_IM_MODULE: "none",
+            XAUTHORITY: process.env.XAUTHORITY ?? path.join(os.homedir(), ".Xauthority"),
+          }
+        : process.env;
+
     const child =
       process.platform === "win32"
         ? spawn(
@@ -675,6 +820,7 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
           )
         : spawn(HELPER_PATH, [], {
             stdio: ["pipe", "pipe", "pipe"],
+            env: linuxEnv,
           });
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -802,11 +948,16 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
     });
   }
 
-  private async checkPermissions(): Promise<{ accessibility: boolean; screenRecording: boolean }> {
+  private async checkPermissions(): Promise<{
+    accessibility: boolean;
+    screenRecording: boolean;
+    linux?: ComputerUseLinuxStatus;
+  }> {
     const result = await this.bridgeCommand<Record<string, unknown>>("checkPermissions");
     return {
       accessibility: result.accessibility === true,
       screenRecording: result.screenRecording === true,
+      ...(process.platform === "linux" ? { linux: parseLinuxStatus(result) } : {}),
     };
   }
 
@@ -855,6 +1006,91 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
       }
 
       status = await this.checkPermissions();
+    }
+  }
+
+  private async ensureLinuxPermissionsInteractive(taskId: string): Promise<void> {
+    const dialog = getElectronDialog();
+    if (!dialog) {
+      throw new Error(
+        "Computer use needs the X11 helper tools (wmctrl, xdotool, scrot or ImageMagick, python3) installed. " +
+          "Start CoWork in the desktop runtime to be guided through installation, or install them manually.",
+      );
+    }
+
+    const sessionManager = ComputerUseSessionManager.getInstance();
+    const distro = detectLinuxDistro();
+
+    while (true) {
+      // Abort gate: bail out if Esc was pressed or the user clicked End session
+      // while the dialog was open. The macOS loop has this same blind spot.
+      const state = sessionManager.getSessionStateForDialog(taskId);
+      if (state.aborted) {
+        throw new Error("Computer use was stopped (Esc) during helper-tools installation.");
+      }
+      if (state.activeTaskId !== taskId) {
+        throw new Error("Computer use session ended during helper-tools installation.");
+      }
+
+      const status = await this.checkPermissions();
+      const linux = status.linux;
+      const tools = linux?.tools;
+      const missing: string[] = [];
+      if (!linux?.pythonAvailable) missing.push("python3");
+      if (!tools?.wmctrl) missing.push("wmctrl");
+      if (!tools?.xdotool) missing.push("xdotool");
+      if (!tools?.scrot && !tools?.import) missing.push("scrot or ImageMagick (capture)");
+      if (linux && !linux.convertAvailable && linux.pythonAvailable === false) {
+        // Only flag ImageMagick as missing if a downstream consumer would care; this
+        // surfaces alongside the python3 missing case which is the more pressing fix.
+        missing.push("ImageMagick (for HiDPI resize)");
+      }
+
+      if (missing.length === 0) {
+        if (!linux?.displayAuth) {
+          const authButtons = ["Recheck", "Cancel"];
+          const authResponse = await dialog.showMessageBox({
+            type: "warning",
+            buttons: authButtons,
+            defaultId: 0,
+            cancelId: 1,
+            noLink: true,
+            message: "Cannot connect to the X11 display",
+            detail:
+              "The X11 helper tools are installed but no display can be reached. " +
+              "If you launched CoWork from a .desktop file, your XAUTHORITY may be wrong. " +
+              "Try launching CoWork from a terminal, or set XAUTHORITY=$HOME/.Xauthority before launching.",
+          });
+          if ((authButtons[authResponse.response] || "Cancel") === "Cancel") {
+            throw new Error("Computer-use helper cannot reach the X11 display.");
+          }
+          continue;
+        }
+        return;
+      }
+
+      const buttons = ["Recheck", "Cancel"];
+      const response = await dialog.showMessageBox({
+        type: "warning",
+        buttons,
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+        message: "Computer use needs additional helper tools",
+        detail:
+          `Missing: ${missing.join(", ")}\n\n` +
+          `Detected package manager: ${distro.family}\n` +
+          `Install with:\n  ${distro.installCmd}\n\n` +
+          `After installing, click Recheck.`,
+      });
+
+      const choice = buttons[response.response] || "Cancel";
+      if (choice === "Cancel") {
+        throw new Error(
+          `Computer-use helper tools are missing (${missing.join(", ")}). ` +
+            `Install them with: ${distro.installCmd}`,
+        );
+      }
     }
   }
 

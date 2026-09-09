@@ -26,20 +26,69 @@ const DEFAULT_WAIT_MS = 1_000;
 const MAX_WAIT_MS = 30_000;
 const CONTROLLED_WINDOW_ERROR = "No controlled window is selected. Call screenshot() first.";
 
-const BLOCKED_KEY_COMBOS = new Set([
-  "cmd+tab",
-  "command+tab",
-  "cmd+space",
-  "command+space",
-  "cmd+q",
-  "command+q",
-  "alt+f4",
-  "l+win",
-  "l+windows",
-  "cmd+option+esc",
-  "command+option+escape",
-  "ctrl+alt+delete",
-]);
+const BLOCKED_KEY_COMBOS_BY_PLATFORM: Record<NodeJS.Platform, ReadonlySet<string>> = {
+  darwin: new Set([
+    "cmd+tab",
+    "command+tab",
+    "cmd+space",
+    "command+space",
+    "cmd+q",
+    "command+q",
+    "alt+f4",
+    "cmd+option+esc",
+    "command+option+escape",
+    "ctrl+alt+delete",
+  ]),
+  win32: new Set([
+    "cmd+tab",
+    "command+tab",
+    "cmd+space",
+    "command+space",
+    "cmd+q",
+    "command+q",
+    "alt+f4",
+    "l+win",
+    "l+windows",
+    "cmd+option+esc",
+    "command+option+escape",
+    "ctrl+alt+delete",
+  ]),
+  linux: new Set([
+    "cmd+tab",
+    "command+tab",
+    "cmd+space",
+    "command+space",
+    "cmd+q",
+    "command+q",
+    "alt+f4",
+    "ctrl+alt+backspace",
+    "ctrl+alt+f1",
+    "ctrl+alt+f2",
+    "ctrl+alt+f3",
+    "ctrl+alt+f4",
+    "ctrl+alt+f5",
+    "ctrl+alt+f6",
+    "ctrl+alt+f7",
+    "ctrl+alt+f8",
+    "ctrl+alt+f9",
+    "ctrl+alt+f10",
+    "ctrl+alt+f11",
+    "ctrl+alt+f12",
+    "ctrl+alt+delete",
+  ]),
+  // Default for any other platform — match the macOS set as the safest baseline.
+  aix: new Set(["ctrl+alt+delete"]),
+  freebsd: new Set(["ctrl+alt+delete"]),
+  openbsd: new Set(["ctrl+alt+delete"]),
+  sunos: new Set(["ctrl+alt+delete"]),
+  cygwin: new Set(["ctrl+alt+delete"]),
+  netbsd: new Set(["ctrl+alt+delete"]),
+  haiku: new Set(["ctrl+alt+delete"]),
+};
+
+function blockedKeyCombos(platform: NodeJS.Platform): ReadonlySet<string> {
+  return BLOCKED_KEY_COMBOS_BY_PLATFORM[platform] ?? BLOCKED_KEY_COMBOS_BY_PLATFORM.darwin;
+}
 
 function normalizeKeysForBlocklist(keys: string[]): string {
   return keys
@@ -247,6 +296,21 @@ function parseKeypressSpec(pid: number, keys: string[]): ComputerUseHelperKeypre
   if (process.platform === "win32") {
     return parseWindowsKeypressSpec(pid, keys);
   }
+  if (process.platform === "linux") {
+    const modifiers: string[] = [];
+    let keyText = "";
+    for (const key of keys) {
+      const trimmed = key.trim();
+      const lower = trimmed.toLowerCase();
+      if (["ctrl", "control", "alt", "option", "shift", "cmd", "command", "win", "windows"].includes(lower)) {
+        modifiers.push(lower);
+      } else {
+        keyText = trimmed;
+      }
+    }
+    if (!keyText) throw new Error(`Could not resolve key combination: ${keys.join("+")}`);
+    return { pid, keyText, ...(modifiers.length > 0 ? { modifiers } : {}) };
+  }
 
   const modifiers: string[] = [];
   let keyText: string | null = null;
@@ -430,12 +494,12 @@ export class ComputerUseTools {
   }
 
   private async ensureReady(): Promise<void> {
-    if (process.platform !== "darwin" && process.platform !== "win32") {
-      throw new Error("Computer use is only supported on macOS and Windows desktop builds.");
+    if (process.platform !== "darwin" && process.platform !== "win32" && process.platform !== "linux") {
+      throw new Error("Computer use is only supported on macOS, Windows, and Linux X11 desktop builds.");
     }
     this.session().acquire(this.taskId, this.daemon);
     this.session().checkNotAborted();
-    await this.helper().ensureReadyWithInteractivePermissions();
+    await this.helper().ensureReadyWithInteractivePermissions(this.taskId);
   }
 
   private async bringTargetToFront(target: ComputerUseTargetState): Promise<void> {
@@ -612,7 +676,15 @@ export class ComputerUseTools {
   ): ComputerUseTargetState {
     if (typeof window.windowId !== "number") {
       throw new Error(
-        `The selected window in ${app.appName} cannot be controlled because macOS did not expose a stable window id.`,
+        `The selected window in ${app.appName} cannot be controlled because ${
+          process.platform === "darwin"
+            ? "macOS"
+            : process.platform === "linux"
+              ? "the X11 window"
+              : "Windows"
+        } did not expose a stable window ${
+          process.platform === "linux" ? "id" : "handle"
+        }.`,
       );
     }
     return {
@@ -1209,7 +1281,7 @@ export class ComputerUseTools {
       throw new Error("keypress requires a non-empty keys array.");
     }
     const normalized = normalizeKeysForBlocklist(keys);
-    if (BLOCKED_KEY_COMBOS.has(normalized)) {
+    if (blockedKeyCombos(process.platform).has(normalized)) {
       throw new Error(`Blocked key combination: ${keys.join("+")}.`);
     }
     await this.ensureReady();
@@ -1253,7 +1325,7 @@ export class ComputerUseTools {
   }
 
   static getToolDefinitions(options?: { headless?: boolean }): LLMTool[] {
-    if (options?.headless || (process.platform !== "darwin" && process.platform !== "win32")) {
+    if (options?.headless || (process.platform !== "darwin" && process.platform !== "win32" && process.platform !== "linux")) {
       return [];
     }
     return [

@@ -6,6 +6,7 @@
  */
 
 import type { BrowserWindow } from "electron";
+import { ComputerUseHelperRuntime } from "./helper-runtime";
 import { ShortcutGuard } from "./shortcut-guard";
 
 export type ComputerUseSessionEndReason = "completed" | "aborted" | "manual";
@@ -50,6 +51,9 @@ export class ComputerUseSessionManager {
   private aborted = false;
   private mainWindowGetter: (() => BrowserWindow | null) | null = null;
   private notifyHandler: ((e: ComputerUseSessionEvent) => void) | null = null;
+  private sessionStateGetter:
+    | ((taskId: string) => { aborted: boolean; activeTaskId: string | null })
+    | null = null;
 
   private constructor() {}
 
@@ -59,6 +63,27 @@ export class ComputerUseSessionManager {
 
   setNotifyHandler(handler: ((e: ComputerUseSessionEvent) => void) | null): void {
     this.notifyHandler = handler;
+  }
+
+  /**
+   * Register a callback the helper-runtime dialog loop can call to check whether
+   * the active task still owns the session. Returns null when the registry has
+   * not been set (e.g. during tests) so callers can default safely.
+   */
+  setSessionStateGetter(
+    getter: ((taskId: string) => { aborted: boolean; activeTaskId: string | null }) | null,
+  ): void {
+    this.sessionStateGetter = getter;
+  }
+
+  /**
+   * Used by helper-runtime's interactive Linux install dialog loop to detect
+   * that the user (Esc / End session / another task) has abandoned the loop.
+   */
+  getSessionStateForDialog(taskId: string): { aborted: boolean; activeTaskId: string | null } {
+    return this.sessionStateGetter
+      ? this.sessionStateGetter(taskId)
+      : { aborted: this.aborted, activeTaskId: this.activeTaskId };
   }
 
   getActiveTaskId(): string | null {
@@ -147,6 +172,17 @@ export class ComputerUseSessionManager {
     this.activeTaskId = null;
     const daemon = this.daemon;
     this.daemon = null;
+
+    // Stop the helper subprocess on abort/manual end so any in-flight type_text or drag
+    // terminates immediately instead of continuing after the user stopped. On completed
+    // we leave it running so the next task can reuse the live process.
+    if (reason !== "completed") {
+      try {
+        ComputerUseHelperRuntime.getInstance().stop();
+      } catch {
+        // helper-runtime can fail to resolve in tests that reset it; safe to ignore.
+      }
+    }
 
     if (reason === "completed") {
       daemon?.logEvent(taskId, "computer_use_session_ended", { reason: "task_finished" });

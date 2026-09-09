@@ -10960,6 +10960,18 @@ function setupMCPHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.COMPUTER_USE_GET_STATUS, async () => {
     const sm = ComputerUseSessionManager.getInstance();
     const helperStatus = await ComputerUseHelperRuntime.getInstance().getStatus();
+    let screenCaptureStatus: "granted" | "denied" | "not-determined" | "unknown";
+    if (helperStatus.platform === "linux" && helperStatus.linux) {
+      const linux = helperStatus.linux;
+      const capture = linux.tools.scrot || linux.tools.import;
+      const toolsOk =
+        linux.pythonAvailable && linux.tools.wmctrl && linux.tools.xdotool && capture;
+      const authOk = linux.displayAuth;
+      screenCaptureStatus =
+        toolsOk && authOk ? "granted" : toolsOk || authOk ? "not-determined" : "denied";
+    } else {
+      screenCaptureStatus = helperStatus.screenRecording ? "granted" : "denied";
+    }
     return {
       activeTaskId: sm.getActiveTaskId(),
       platform: helperStatus.platform,
@@ -10967,7 +10979,8 @@ function setupMCPHandlers(): void {
       sourcePath: helperStatus.sourcePath,
       installed: helperStatus.installed,
       accessibilityTrusted: helperStatus.accessibility,
-      screenCaptureStatus: helperStatus.screenRecording ? "granted" : "denied",
+      screenCaptureStatus,
+      linux: helperStatus.linux,
       error: helperStatus.error ?? null,
     };
   });

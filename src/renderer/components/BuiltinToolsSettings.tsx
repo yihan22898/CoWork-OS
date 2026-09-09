@@ -104,7 +104,7 @@ const CATEGORY_INFO: Record<
     description: "Passive local screen-context disambiguation and recall",
   },
   computer_use: {
-    name: "Computer Use (macOS)",
+    name: "Computer Use",
     icon: <MousePointer2 {...IC} />,
     description:
       "Native desktop control — mouse, keyboard, screenshots (last resort vs browser/shell)",

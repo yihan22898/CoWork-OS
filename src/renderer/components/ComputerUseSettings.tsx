@@ -3,6 +3,19 @@ import { MousePointer2, RefreshCw } from "lucide-react";
 
 type ScreenStatus = "granted" | "denied" | "not-determined" | "unknown";
 
+interface ComputerUseLinuxStatus {
+  pythonAvailable: boolean;
+  displayAuth: boolean;
+  convertAvailable: boolean;
+  tools: {
+    wmctrl: boolean;
+    xdotool: boolean;
+    scrot: boolean;
+    import: boolean;
+    convert: boolean;
+  };
+}
+
 interface ComputerUseStatus {
   activeTaskId: string | null;
   platform: string;
@@ -11,7 +24,27 @@ interface ComputerUseStatus {
   installed: boolean;
   accessibilityTrusted: boolean;
   screenCaptureStatus: ScreenStatus;
+  linux?: ComputerUseLinuxStatus;
   error: string | null;
+}
+
+const LINUX_INSTALL_COMMANDS: Array<{ family: string; cmd: string }> = [
+  { family: "apt (Debian/Ubuntu/Mint/Pop)", cmd: "sudo apt install wmctrl xdotool scrot imagemagick python3" },
+  { family: "dnf (Fedora/RHEL/Rocky/Alma)", cmd: "sudo dnf install wmctrl xdotool scrot ImageMagick python3" },
+  { family: "pacman (Arch/Manjaro/Endeavour)", cmd: "sudo pacman -S --needed wmctrl xdotool scrot imagemagick python" },
+  { family: "zypper (openSUSE)", cmd: "sudo zypper install wmctrl xdotool scrot imagemagick python3" },
+  { family: "apk (Alpine)", cmd: "sudo apk add wmctrl xdotool scrot imagemagick python3" },
+];
+
+function linuxMissingTools(linux: ComputerUseLinuxStatus | undefined): string[] {
+  if (!linux) return ["wmctrl", "xdotool", "scrot or ImageMagick", "python3"];
+  const missing: string[] = [];
+  if (!linux.pythonAvailable) missing.push("python3");
+  if (!linux.tools.wmctrl) missing.push("wmctrl");
+  if (!linux.tools.xdotool) missing.push("xdotool");
+  if (!linux.tools.scrot && !linux.tools.import) missing.push("scrot or ImageMagick (capture)");
+  if (!linux.convertAvailable && !linux.tools.convert) missing.push("ImageMagick (for HiDPI resize)");
+  return missing;
 }
 
 function statusLabel(ok: boolean): string {
@@ -40,6 +73,7 @@ export function ComputerUseSettings() {
 
   const isMac = platform === "darwin";
   const isWindows = platform === "win32";
+  const isLinux = platform === "linux";
 
   const refresh = useCallback(async () => {
     try {
@@ -111,7 +145,7 @@ export function ComputerUseSettings() {
           Computer use
         </h3>
         <p className="settings-description">
-          Pi-style native desktop control for macOS and Windows. The agent targets one controlled
+          Pi-style native desktop control for macOS, Windows, and Linux X11. The agent targets one controlled
           window at a time through `screenshot()`, then uses screenshot-relative mouse, keyboard,
           scroll, and typing actions.
         </p>
@@ -119,11 +153,80 @@ export function ComputerUseSettings() {
 
       {error ? <div className="settings-error">{error}</div> : null}
 
-      {!isMac && !isWindows ? (
+      {!isMac && !isWindows && !isLinux ? (
         <div className="computer-use-platform-note">
-          Computer use is available on <strong>macOS</strong> and <strong>Windows</strong> desktop
-          builds only. On this platform the controls below reflect limited or unavailable permission
-          APIs.
+          Computer use is available on macOS, Windows, and Linux X11 desktop builds. This platform
+          is not currently supported.
+        </div>
+      ) : null}
+
+      {isLinux ? (
+        <div className="computer-use-platform-note">
+          Linux support requires an X11 session plus <code>wmctrl</code>, <code>xdotool</code>, and
+          <code>scrot</code> or ImageMagick. Wayland-only sessions are not supported yet.
+        </div>
+      ) : null}
+
+      {isLinux && status?.linux ? (
+        <div className="computer-use-status-card computer-use-linux-diagnostics">
+          <div className="computer-use-status-title">X11 helper tools</div>
+          <ul className="computer-use-linux-tool-list">
+            <li className={status.linux.pythonAvailable ? "ok" : "bad"}>
+              <span className="computer-use-linux-tool-label">python3</span>
+              <span className="computer-use-linux-tool-state">
+                {status.linux.pythonAvailable ? "Installed" : "Missing"}
+              </span>
+            </li>
+            <li className={status.linux.tools.wmctrl ? "ok" : "bad"}>
+              <span className="computer-use-linux-tool-label">wmctrl</span>
+              <span className="computer-use-linux-tool-state">
+                {status.linux.tools.wmctrl ? "Installed" : "Missing"}
+              </span>
+            </li>
+            <li className={status.linux.tools.xdotool ? "ok" : "bad"}>
+              <span className="computer-use-linux-tool-label">xdotool</span>
+              <span className="computer-use-linux-tool-state">
+                {status.linux.tools.xdotool ? "Installed" : "Missing"}
+              </span>
+            </li>
+            <li
+              className={
+                status.linux.tools.scrot || status.linux.tools.import ? "ok" : "bad"
+              }
+            >
+              <span className="computer-use-linux-tool-label">
+                {status.linux.tools.scrot ? "scrot" : status.linux.tools.import ? "ImageMagick (import)" : "scrot or ImageMagick"}
+              </span>
+              <span className="computer-use-linux-tool-state">
+                {status.linux.tools.scrot || status.linux.tools.import
+                  ? "Installed"
+                  : "Missing"}
+              </span>
+            </li>
+            <li className={status.linux.convertAvailable ? "ok" : "bad"}>
+              <span className="computer-use-linux-tool-label">ImageMagick (convert — HiDPI resize)</span>
+              <span className="computer-use-linux-tool-state">
+                {status.linux.convertAvailable ? "Installed" : "Missing"}
+              </span>
+            </li>
+            <li className={status.linux.displayAuth ? "ok" : "bad"}>
+              <span className="computer-use-linux-tool-label">X11 display authorization</span>
+              <span className="computer-use-linux-tool-state">
+                {status.linux.displayAuth ? "OK" : "Cannot reach display"}
+              </span>
+            </li>
+          </ul>
+          {linuxMissingTools(status.linux).length > 0 ? (
+            <div className="computer-use-linux-install-hint">
+              <div className="computer-use-linux-install-title">Install with:</div>
+              {LINUX_INSTALL_COMMANDS.map((entry) => (
+                <div key={entry.family} className="computer-use-linux-install-row">
+                  <span className="computer-use-linux-install-family">{entry.family}</span>
+                  <code className="computer-use-linux-install-cmd">{entry.cmd}</code>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
