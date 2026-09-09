@@ -239,7 +239,7 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     type: "minimax",
     name: "MiniMax",
-    description: "MiniMax M2.1 & M2.7 models",
+    description: "MiniMax M3, M2.1 & M2.7 models",
     icon: (
       <svg
         width="24"

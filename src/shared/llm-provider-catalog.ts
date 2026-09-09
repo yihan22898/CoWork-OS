@@ -213,6 +213,7 @@ export const CUSTOM_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     baseUrl: "https://api.minimax.io/v1",
     defaultModel: "MiniMax-M2.1",
     knownModels: [
+      "MiniMax-M3",
       "MiniMax-M2.7",
       "MiniMax-M2.7-highspeed",
       "MiniMax-M2.5",

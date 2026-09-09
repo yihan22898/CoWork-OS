@@ -21,6 +21,8 @@ const MODEL_LIMITS: Record<string, number> = {
   "gpt-4.1-mini": 128000,
   "gpt-4-turbo": 128000,
   "gpt-3.5-turbo": 16000,
+  "MiniMax-M3": 200000,
+  "MiniMax-M2.7-highspeed": 20000,
   default: 100000,
 };
 
