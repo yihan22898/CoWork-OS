@@ -59,6 +59,27 @@ function sessionRecallEnabled(): boolean {
   return MemoryFeaturesManager.loadSettings().sessionRecallEnabled !== false;
 }
 
+/**
+ * Linux `.desktop` file lookup helpers. We only parse the un-localized
+ * `Name=` / `Exec=` / `Hidden=` / `NoDisplay=` lines — enough to match a
+ * friendly app name ("Firefox", "Google Chrome") to its binary without
+ * pulling in a full Desktop Entry parser.
+ */
+function parseDesktopField(content: string, field: string): string | undefined {
+  const re = new RegExp(`^${field}=(.*)$`, "m");
+  const match = content.match(re);
+  return match ? match[1].trim() : undefined;
+}
+
+function cleanDesktopExec(exec: string): { bin: string; args: string[] } | undefined {
+  // Strip Desktop Entry Exec field codes: %u, %U, %F, %f, %c, %k, %i, etc.
+  const cleaned = exec.replace(/%[uUfFckiaAdDnNvm]/g, "").trim();
+  if (!cleaned) return undefined;
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return undefined;
+  return { bin: parts[0], args: parts.slice(1) };
+}
+
 function topicMemoryEnabled(): boolean {
   return MemoryFeaturesManager.loadSettings().topicMemoryEnabled !== false;
 }
@@ -694,7 +715,7 @@ export class SystemTools {
           { timeout: DEFAULT_TIMEOUT, windowsHide: true },
         );
       } else {
-        await execFileAsync(appName, [], { timeout: DEFAULT_TIMEOUT });
+        await this.launchLinuxApp(appName);
       }
 
       this.daemon.logEvent(this.taskId, "tool_result", {
@@ -714,6 +735,93 @@ export class SystemTools {
       });
       throw new Error(`Failed to open application "${appName}": ${error.message}`);
     }
+  }
+
+  /**
+   * Linux application launcher. Resolves friendly app names ("Firefox",
+   * "Google Chrome", "Chrome", "VS Code", "Code") to a runnable binary and
+   * execs it. Resolution order:
+   *   1. Absolute path — exec directly.
+   *   2. Direct exec via PATH (handles "firefox", "code", etc.).
+   *   3. Walk `~/.local/share/applications`, `/usr/share/applications`, and
+   *      the common snap/flatpak dirs for `.desktop` files whose `Name=` or
+   *      `Exec=` basename (case-insensitive) matches the request, then exec
+   *      the parsed `Exec=` binary.
+   *   4. If nothing matched, throw with a hint pointing at `xdg-open` /
+   *      absolute path so the user can recover.
+   */
+  private async launchLinuxApp(appName: string): Promise<void> {
+    // 1. Absolute path.
+    if (appName.startsWith("/") || appName.startsWith("~/")) {
+      const resolved = appName.startsWith("~/")
+        ? path.join(os.homedir(), appName.slice(2))
+        : appName;
+      await execFileAsync(resolved, [], { timeout: DEFAULT_TIMEOUT });
+      return;
+    }
+
+    // 2. Direct exec via PATH. Catches common browser binaries (firefox,
+    //    google-chrome, brave, code, …) without a `.desktop` round trip.
+    try {
+      await execFileAsync(appName, [], { timeout: DEFAULT_TIMEOUT });
+      return;
+    } catch {
+      // fall through to .desktop walk
+    }
+
+    // 3. Walk .desktop files in standard application dirs.
+    const query = appName.toLowerCase().trim();
+    const appDirs = [
+      path.join(os.homedir(), ".local", "share", "applications"),
+      "/usr/share/applications",
+      "/var/lib/snapd/desktop/applications",
+      "/var/lib/flatpak/exports/share/applications",
+    ];
+    const tried: string[] = [];
+    for (const dir of appDirs) {
+      let entries: string[];
+      try {
+        entries = await fs.readdir(dir);
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.endsWith(".desktop")) continue;
+        const fullPath = path.join(dir, entry);
+        let content: string;
+        try {
+          content = await fs.readFile(fullPath, "utf8");
+        } catch {
+          continue;
+        }
+        if (parseDesktopField(content, "Hidden") === "true") continue;
+        if (parseDesktopField(content, "NoDisplay") === "true") continue;
+        if (parseDesktopField(content, "Type") !== "Application") continue;
+        const name = parseDesktopField(content, "Name")?.toLowerCase() ?? "";
+        const execField = parseDesktopField(content, "Exec");
+        const execBin = execField ? cleanDesktopExec(execField)?.bin ?? "" : "";
+        const execBase = execBin ? path.basename(execBin).toLowerCase() : "";
+        const entryBase = entry.replace(/\.desktop$/, "").toLowerCase();
+        if (
+          name === query ||
+          execBase === query ||
+          execBin.toLowerCase() === query ||
+          entryBase === query
+        ) {
+          const cleaned = cleanDesktopExec(execField ?? "");
+          if (!cleaned) continue;
+          tried.push(fullPath);
+          await execFileAsync(cleaned.bin, cleaned.args, { timeout: DEFAULT_TIMEOUT });
+          return;
+        }
+      }
+    }
+
+    throw new Error(
+      `Could not resolve "${appName}" to an installed application ` +
+        `(searched: ${appDirs.join(", ")}). ` +
+        `Try a different name, the absolute path, or run from a terminal: xdg-open ${appName}`,
+    );
   }
 
   /**
