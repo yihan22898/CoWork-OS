@@ -1,6 +1,6 @@
 # Computer use
 
-Computer use lets the agent drive **native desktop applications** on macOS and Windows through real mouse, keyboard, and screen capture—when integrations, browser automation, and shell are not the right tool for the job.
+Computer use lets the agent drive **native desktop applications** on macOS, Windows, and Linux X11 through real mouse, keyboard, and screen capture—when integrations, browser automation, and shell are not the right tool for the job.
 
 This page is the **authoritative product guide** for the feature. For a short summary, see [Features → Computer use](features.md#computer-use).
 
@@ -25,9 +25,10 @@ The planner and tool policy treat the computer-use lane as a **controlled, last-
 
 ## Platform requirements
 
-- **macOS and Windows desktop builds** are supported. Linux/headless builds do not expose this tool family.
+- **macOS, Windows, and Linux X11 desktop builds** are supported. Wayland-only and headless builds do not expose this tool family.
 - **macOS** uses a bundled Swift helper with Accessibility and Screen Recording permissions.
 - **Windows v1** uses a bundled PowerShell/Win32 helper for visible, non-minimized windows. Some protected or elevated apps may block capture or input unless CoWork is running with comparable privileges.
+- **Linux X11** uses a bundled Python helper with `wmctrl`, `xdotool`, and `scrot` or ImageMagick. Install those packages in the Ubuntu guest before first use. Linux support uses visible X11 windows and does not provide an accessibility tree.
 
 ## Access-profile and operating-system boundaries
 
@@ -67,6 +68,38 @@ Known v1 limits:
 - Apps running as administrator may require CoWork to run as administrator.
 - Some games, protected apps, or anti-cheat surfaces may block capture or input.
 - If background capture/control is unavailable, actions may briefly use the foreground mouse and keyboard.
+
+## Linux X11 behavior
+
+Linux support targets a desktop running an X11 session. The helper enumerates windows with `wmctrl`, sends input with `xdotool`, and captures the active window with `scrot` or ImageMagick. CoWork will detect your distribution from `/etc/os-release` and prompt to install missing dependencies on first use.
+
+Install the dependencies manually:
+
+```bash
+# Debian / Ubuntu / Mint / Pop!_OS
+sudo apt install wmctrl xdotool scrot imagemagick python3
+
+# Fedora / RHEL / Rocky / Alma
+sudo dnf install wmctrl xdotool scrot ImageMagick python3
+
+# Arch / Manjaro / Endeavour
+sudo pacman -S --needed wmctrl xdotool scrot imagemagick python
+
+# openSUSE
+sudo zypper install wmctrl xdotool scrot imagemagick python3
+
+# Alpine
+sudo apk add wmctrl xdotool scrot imagemagick python3
+```
+
+Notable Linux-specific behavior:
+
+- **Wayland-only sessions are not supported yet.** If you log in via GNOME Wayland or KDE Wayland, switch to an X11 session (GNOME on Xorg, etc.) before using Computer Use.
+- **HiDPI scaling is handled.** The helper detects the X11 DPI and resizes screenshots to logical pixels before sending them to the model, so click coordinates map predictably to physical screen positions on 125%–200% scaled displays.
+- **IMEs are bypassed for `type_text`.** `XMODIFIERS=@im=none`, `GTK_IM_MODULE=none`, and `QT_IM_MODULE=none` are set on the helper child so `xdotool type` does not drop or reorder characters under IBus / Fcitx.
+- **`XAUTHORITY` falls back to `~/.Xauthority`.** This is important when CoWork is launched from a `.desktop` file rather than a terminal; the parent shell's auth cookie is otherwise lost.
+- **Accessibility tree is unavailable.** Linux X11 has no public equivalent of macOS Accessibility; all actions use screenshot-relative coordinates. `ax_*` tool variants always return "not implemented" with a clear reason.
+- **Dangerous key combos are blocked** at the tool layer: `Ctrl+Alt+Backspace` (terminate X server), `Ctrl+Alt+F1`–`F12` (switch virtual terminal).
 
 ## Session model (one active session)
 
@@ -138,8 +171,10 @@ For how this fits the wider tool-risk model, see [Security guide → Computer us
 
 | Symptom | Things to check |
 |---------|------------------|
-| Screenshot or capture errors / timeouts | macOS: Screen Recording for the helper path shown in settings; restart app after granting. Windows: target window visible, non-minimized, and not protected/elevated above CoWork. |
-| Clicks or keys do nothing | macOS: Accessibility trust for the helper path shown in settings. Windows: target app is not elevated/protected and no other app is stealing focus. |
+| Screenshot or capture errors / timeouts | macOS: Screen Recording for the helper path shown in settings; restart app after granting. Windows: target window visible, non-minimized, and not protected/elevated above CoWork. Linux: open **Settings → Tools → Computer use**; the Linux diagnostics card lists missing helper tools and the install command for your distribution. |
+| Clicks or keys do nothing | macOS: Accessibility trust for the helper path shown in settings. Windows: target app is not elevated/protected and no other app is stealing focus. Linux: confirm `wmctrl` and `xdotool` are installed and `DISPLAY`/`XAUTHORITY` are reachable. |
+| HiDPI clicks land in the wrong spot | Linux: the helper auto-detects DPI and rescales screenshots. If a regression occurs, capture the X11 DPI with `xdpyinfo \| grep resolution` and confirm the helper is reading it. |
+| `type_text` drops or reorders characters | Linux: confirm `XMODIFIERS=@im=none` is honored (the helper sets this automatically). On other platforms, check that the target control is not a custom IME. |
 | Agent uses shell or browser instead of desktop | Task may not read as native GUI; rephrase with explicit app/window/dialog language, or ensure built-in `computer_use` is enabled. |
 | Agent asks for a screenshot when the task is really “what is this on screen?” | This may be a Chronicle case rather than a computer-use case; enable Chronicle and test `screen_context_resolve` with a clear on-screen prompt first. |
 | Permission bootstrap repeats | macOS: re-check that both Accessibility and Screen Recording are granted to the helper binary, not just to CoWork OS or Terminal. |
@@ -150,7 +185,7 @@ For how this fits the wider tool-risk model, see [Security guide → Computer us
 | Area | Location |
 |------|----------|
 | Tool definitions and execution | `src/electron/agent/tools/computer-use-tools.ts` |
-| Helper runtime + providers | `src/electron/computer-use/helper-runtime.ts`, `src/electron/computer-use/provider.ts`, `resources/computer-use/bridge.swift`, `resources/computer-use/bridge.ps1` |
+| Helper runtime + providers | `src/electron/computer-use/helper-runtime.ts`, `src/electron/computer-use/provider.ts`, `resources/computer-use/bridge.swift`, `resources/computer-use/bridge.ps1`, `resources/computer-use/bridge.py` |
 | Session lifecycle | `src/electron/computer-use/session-manager.ts`, `shortcut-guard.ts` |
 | Policy / routing | `src/electron/agent/tool-policy-engine.ts`, `src/electron/agent/executor.ts` |
 | Settings / IPC | `src/renderer/components/ComputerUseSettings.tsx`, IPC handlers |
