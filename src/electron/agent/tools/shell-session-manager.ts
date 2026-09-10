@@ -580,6 +580,10 @@ export class ShellSessionManager {
         PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
         LANG: process.env.LANG || "en_US.UTF-8",
         TERM: process.env.TERM || "xterm-256color",
+        DISPLAY: process.env.DISPLAY || ":0",
+        ...(process.env.XAUTHORITY ? { XAUTHORITY: process.env.XAUTHORITY } : {}),
+        ...(process.env.XDG_RUNTIME_DIR ? { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR } : {}),
+        ...(process.env.WAYLAND_DISPLAY ? { WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY } : {}),
       },
       stdio: ["pipe", "pipe", "pipe"],
     });

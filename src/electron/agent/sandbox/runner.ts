@@ -366,6 +366,10 @@ export class SandboxRunner {
       safeEnv.TERM = "xterm-256color";
       safeEnv.LANG = process.env.LANG || "en_US.UTF-8";
       safeEnv.TMPDIR = this.getRuntimeTempDirIfScoped();
+      safeEnv.DISPLAY = process.env.DISPLAY || ":0";
+      if (process.env.XAUTHORITY) safeEnv.XAUTHORITY = process.env.XAUTHORITY;
+      if (process.env.XDG_RUNTIME_DIR) safeEnv.XDG_RUNTIME_DIR = process.env.XDG_RUNTIME_DIR;
+      if (process.env.WAYLAND_DISPLAY) safeEnv.WAYLAND_DISPLAY = process.env.WAYLAND_DISPLAY;
 
       // Minimal PATH with only standard locations
       safeEnv.PATH = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
