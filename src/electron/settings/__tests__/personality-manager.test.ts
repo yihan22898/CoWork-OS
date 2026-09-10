@@ -66,7 +66,7 @@ vi.mock("electron", () => ({
 }));
 
 // Import after mocking
-import { PersonalityManager } from "../personality-manager";
+import { PersonalityManager, resolveHostPlatformInfo } from "../personality-manager";
 
 describe("PersonalityManager", () => {
   beforeEach(() => {
@@ -522,6 +522,14 @@ describe("PersonalityManager - agent name", () => {
       expect(prompt).toContain("do not have a confirmed name");
       expect(prompt).toContain("what they'd like to be called");
       expect(prompt).toContain("set_user_name tool");
+    });
+
+    it("should dynamically detect platform instead of hardcoding macOS", () => {
+      const prompt = PersonalityManager.getIdentityPrompt();
+      const hostInfo = resolveHostPlatformInfo();
+
+      expect(prompt).toContain(`Current Host Operating System: ${hostInfo.osDetail}`);
+      expect(prompt).toContain(hostInfo.nativeCapabilities);
     });
   });
 

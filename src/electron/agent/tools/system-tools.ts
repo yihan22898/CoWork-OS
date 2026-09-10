@@ -751,19 +751,27 @@ export class SystemTools {
    *      absolute path so the user can recover.
    */
   private async launchLinuxApp(appName: string): Promise<void> {
+    const defaultLinuxExecOptions = {
+      timeout: DEFAULT_TIMEOUT,
+      env: {
+        ...process.env,
+        DISPLAY: process.env.DISPLAY ?? ":0",
+      },
+    };
+
     // 1. Absolute path.
     if (appName.startsWith("/") || appName.startsWith("~/")) {
       const resolved = appName.startsWith("~/")
         ? path.join(os.homedir(), appName.slice(2))
         : appName;
-      await execFileAsync(resolved, [], { timeout: DEFAULT_TIMEOUT });
+      await execFileAsync(resolved, [], defaultLinuxExecOptions);
       return;
     }
 
     // 2. Direct exec via PATH. Catches common browser binaries (firefox,
     //    google-chrome, brave, code, …) without a `.desktop` round trip.
     try {
-      await execFileAsync(appName, [], { timeout: DEFAULT_TIMEOUT });
+      await execFileAsync(appName, [], defaultLinuxExecOptions);
       return;
     } catch {
       // fall through to .desktop walk
@@ -811,7 +819,7 @@ export class SystemTools {
           const cleaned = cleanDesktopExec(execField ?? "");
           if (!cleaned) continue;
           tried.push(fullPath);
-          await execFileAsync(cleaned.bin, cleaned.args, { timeout: DEFAULT_TIMEOUT });
+          await execFileAsync(cleaned.bin, cleaned.args, defaultLinuxExecOptions);
           return;
         }
       }

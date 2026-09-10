@@ -217,22 +217,22 @@ const IMAGE_CREATION_INTENT_PATTERN =
 const VIDEO_CREATION_INTENT_PATTERN =
   /\b(video|clip|animation|footage|reel|movie)\b|create\s+(?:an?\s+)?video|generate\s+(?:an?\s+)?video|make\s+(?:an?\s+)?video|record\s+(?:an?\s+)?video/i;
 const SYSTEM_INTENT_PATTERN =
-  /\b(clipboard|screenshot|finder|application|open app|open url|environment variable|env var|applescript|desktop automation)\b/i;
+  /\b(clipboard|screenshot|finder|application|open app|open url|environment variable|env var|applescript|desktop automation|linux app|ubuntu app|xdg-open)\b/i;
 /** Native / full-desktop control — last resort after MCP, browser, and shell. */
 const COMPUTER_USE_INTENT_PATTERN =
-  /\b(computer use|desktop automation|native app|native desktop|native macos|macos app|native windows|windows app|control my (mac|pc|screen|desktop)|not in browser|gui only|ios simulator|simulator|xcode|system preferences|system settings|windows settings|menu bar|taskbar|explorer|notepad|calculator|installer dialog)\b/i;
+  /\b(computer use|desktop automation|native app|native desktop|native macos|macos app|native windows|windows app|native linux|linux app|ubuntu app|control my (mac|pc|screen|desktop|linux)|not in browser|gui only|ios simulator|simulator|xcode|system preferences|system settings|windows settings|menu bar|taskbar|explorer|notepad|calculator|gedit|nautilus|installer dialog|x11|xdotool|wmctrl)\b/i;
 const SCREEN_CONTEXT_INTENT_PATTERN =
   /\b(failing one|on screen|latest draft|same doc|what is this|why is this failing|screen context|right side|left side|top right|top left|bottom right|bottom left)\b/i;
 const EXPLICIT_APPLESCRIPT_INTENT_PATTERN =
   /\b(applescript|osascript|script editor|apple script|tell application|system events)\b/i;
 const NATIVE_APP_REFERENCE_PATTERN =
-  /\b(calculator|notes?|finder|preview|textedit|system settings|system preferences|simulator|ios simulator|xcode|mail|messages|photos|music|quicktime|terminal|iterm|warp|cursor|vscode|visual studio code|menu bar|dock|spotlight|native app|desktop app|macos app)\b/i;
+  /\b(calculator|notes?|finder|gedit|nautilus|gnome-terminal|gnome-calculator|calc|preview|textedit|system settings|system preferences|simulator|ios simulator|xcode|mail|messages|photos|music|quicktime|terminal|iterm|warp|cursor|vscode|visual studio code|menu bar|dock|spotlight|native app|desktop app|macos app|linux app|ubuntu app)\b/i;
 const NATIVE_GUI_ACTION_PATTERN =
   /\b(click|tap|press|type|enter|select|choose|toggle|drag|drop|scroll|hover|move (?:the )?mouse|cursor|navigate|create|rename|delete|compose|reply|submit)\b/i;
 const NATIVE_APP_OPEN_PATTERN =
   /\b(open|launch|activate|bring(?:ing)? .* front|focus|switch to|use)\b/i;
 const GENERIC_NATIVE_SURFACE_PATTERN =
-  /\b(?:the|this|that|current)\s+(?:(?:native|desktop|macos|windows)\s+)?(?:app|application|desktop|screen)\b/i;
+  /\b(?:the|this|that|current)\s+(?:(?:native|desktop|macos|windows|linux|ubuntu)\s+)?(?:app|application|desktop|screen)\b/i;
 const WEB_SURFACE_PATTERN =
   /\b(browser|website|web page|web app|dom|url|https?:\/\/|localhost|127\.0\.0\.1|chrome|safari|firefox|brave|edge|browser tab|webview)\b/i;
 const ORCHESTRATION_INTENT_PATTERN =

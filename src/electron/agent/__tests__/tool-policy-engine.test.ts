@@ -251,6 +251,14 @@ describe("evaluateToolAvailability open_application", () => {
     expect(r.decision).toBe("allow");
   });
 
+  it("allows open_application for Linux and Ubuntu native apps", () => {
+    const r = evaluateToolAvailability("open_application", {
+      ...baseCtx,
+      taskText: "Open gedit on Ubuntu to edit notes",
+    });
+    expect(r.decision).toBe("allow");
+  });
+
   it("defers open_application for ordinary file organization work", () => {
     const r = evaluateToolAvailability("open_application", {
       ...baseCtx,

@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { app, nativeImage, type NativeImage } from "electron";
 
-export const APP_DISPLAY_NAME = "CoWork OS";
+export const APP_DISPLAY_NAME = "Pan Mee OS";
 export const APP_BUNDLE_ID = "com.cowork-os.app";
 
 function iconCandidates(): string[] {

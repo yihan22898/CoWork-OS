@@ -353,8 +353,8 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
 
   async getStatus(): Promise<ComputerUseHelperStatus> {
     const sourcePath = this.getHelperSourcePath();
-    const installed =
-      process.platform === "win32"
+    let installed =
+      process.platform === "win32" || process.platform === "linux"
         ? Boolean(sourcePath || existsSync(HELPER_PATH))
         : await isExecutable(HELPER_PATH);
     if (!installed) {
@@ -373,6 +373,7 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
       // scenario reports accurate permission diagnostics instead of just `installed: true`.
       if (process.platform === "win32" || process.platform === "linux") {
         await this.ensureHelperInstalled();
+        installed = await isExecutable(HELPER_PATH);
       }
       const status = await this.checkPermissions();
       return {

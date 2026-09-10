@@ -273,7 +273,7 @@
   },
   "build": {
     "appId": "com.cowork-os.app",
-    "productName": "CoWork OS",
+    "productName": "Pan Mee OS",
     "directories": {
       "output": "release"
     },

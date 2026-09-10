@@ -119,6 +119,79 @@ function migrateV1ToV2(v1: PersonalitySettings): PersonalityConfigV2 {
   };
 }
 
+export interface HostPlatformInfo {
+  osName: string;
+  osDetail: string;
+  nativeCapabilities: string;
+  scriptingTool: string;
+}
+
+export function resolveHostPlatformInfo(): HostPlatformInfo {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    return {
+      osName: "macOS",
+      osDetail: "macOS",
+      nativeCapabilities:
+        "- macOS Native: Run AppleScript for deep OS automation, manage Apple Calendar and Reminders, take system screenshots, read/write clipboard, open apps.",
+      scriptingTool: "AppleScript",
+    };
+  }
+
+  if (platform === "win32") {
+    return {
+      osName: "Windows",
+      osDetail: "Windows",
+      nativeCapabilities:
+        "- Windows Native: Run PowerShell and batch commands for deep OS automation, manage windows and processes, take system screenshots, read/write clipboard, open apps.",
+      scriptingTool: "PowerShell",
+    };
+  }
+
+  // Linux detection
+  let distro = "Linux";
+  try {
+    if (fs.existsSync("/etc/os-release")) {
+      const release = fs.readFileSync("/etc/os-release", "utf8");
+      const prettyMatch = release.match(/^PRETTY_NAME=["']?([^"'\n]+)["']?/m);
+      const nameMatch = release.match(/^NAME=["']?([^"'\n]+)["']?/m);
+      if (prettyMatch && prettyMatch[1]) {
+        distro = prettyMatch[1];
+      } else if (nameMatch && nameMatch[1]) {
+        distro = nameMatch[1];
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  let vmHint = "";
+  try {
+    const dmiProduct = "/sys/class/dmi/id/product_name";
+    const dmiVendor = "/sys/class/dmi/id/sys_vendor";
+    const product = fs.existsSync(dmiProduct) ? fs.readFileSync(dmiProduct, "utf8").trim() : "";
+    const vendor = fs.existsSync(dmiVendor) ? fs.readFileSync(dmiVendor, "utf8").trim() : "";
+    const combined = `${vendor} ${product}`.toLowerCase();
+    if (combined.includes("virtualbox") || combined.includes("innotek")) {
+      vmHint = " (VirtualBox VM)";
+    } else if (combined.includes("vmware")) {
+      vmHint = " (VMware VM)";
+    } else if (combined.includes("qemu") || combined.includes("kvm")) {
+      vmHint = " (QEMU/KVM VM)";
+    }
+  } catch {
+    // fallback
+  }
+
+  const osDetail = `${distro}${vmHint}`;
+  return {
+    osName: distro,
+    osDetail,
+    nativeCapabilities: `- Linux Native (${osDetail}): Run bash/shell commands for OS automation, manage packages and processes, take system screenshots, read/write clipboard, open apps.`,
+    scriptingTool: "shell scripts",
+  };
+}
+
 export class PersonalityManager {
   private static legacySettingsPath: string;
   private static cachedSettings: PersonalitySettings | null = null;
@@ -741,9 +814,11 @@ export class PersonalityManager {
     const userName = relationship?.userName;
     const tasksCompleted = relationship?.tasksCompleted || 0;
     const projectsWorkedOn = relationship?.projectsWorkedOn || [];
+    const hostInfo = resolveHostPlatformInfo();
 
     let prompt = `YOUR IDENTITY:
-You are ${agentName}, the user's AI companion built into CoWork OS — a desktop AI companion app for macOS that is local-first, private, and extensible.
+You are ${agentName}, the user's AI companion built into CoWork OS — a desktop AI companion app for ${hostInfo.osDetail} that is local-first, private, and extensible.
+- Current Host Operating System: ${hostInfo.osDetail}
 - When asked about your name or identity, say you are "${agentName}"
 - Do NOT claim to be Claude, ChatGPT, or any other AI assistant
 - You are a customizable assistant that users can personalize
@@ -755,7 +830,7 @@ YOUR CAPABILITIES (what you can actually do):
 - Files & Code: Read, write, edit, search, and manage files in the workspace. Full glob/grep support.
 - Web: Search the internet, fetch web pages, and automate any website via a built-in browser (click, fill forms, screenshot, navigate).
 - Shell: Run any terminal command — build projects, install packages, run scripts, manage git repos, anything the command line can do.
-- macOS Native: Run AppleScript for deep OS automation, manage Apple Calendar and Reminders, take system screenshots, read/write clipboard, open apps.
+${hostInfo.nativeCapabilities}
 - Communication: Access email (Gmail or IMAP), read messaging channels (iMessage, Slack, Telegram), and even make voice calls.
 - Cloud Storage: Work with Google Drive, Dropbox, OneDrive, Box, SharePoint, and Notion — read, upload, organize files.
 - Visual: Create interactive HTML dashboards/canvases, generate images from text, analyze and understand images.
@@ -768,7 +843,7 @@ COMPANION MINDSET:
 - You are the user's thinking partner, not just a command executor. Anticipate needs, suggest better approaches, and offer to automate recurring work.
 - If you notice a task the user does repeatedly, offer to create a skill for it.
 - When completing a task, briefly mention natural follow-ups if they'd be helpful — but don't over-prompt.
-- If you cannot do something with your current tools, figure it out: use shell commands, AppleScript, browser automation, or suggest connecting an MCP server. Say "I can't" only after exhausting all creative paths.`;
+- If you cannot do something with your current tools, figure it out: use shell commands, ${hostInfo.scriptingTool}, browser automation, or suggest connecting an MCP server. Say "I can't" only after exhausting all creative paths.`;
 
     // Add user relationship context
     if (userName) {
