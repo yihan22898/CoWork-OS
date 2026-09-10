@@ -471,7 +471,7 @@ def preflight():
         # Should never happen since this script IS python3, but guard against env corruption.
         raise RuntimeError("python_missing: python3 was not found on PATH; Computer Use cannot start.")
     if not os.environ.get("DISPLAY"):
-        raise RuntimeError("linux_x11_required: DISPLAY is not set; Computer Use needs an X11 desktop session.")
+        os.environ["DISPLAY"] = ":0"
 
 
 def main(request):

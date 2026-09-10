@@ -802,6 +802,9 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
       process.platform === "linux"
         ? {
             ...process.env,
+            DISPLAY: process.env.DISPLAY || ":0",
+            ...(process.env.WAYLAND_DISPLAY ? { WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY } : {}),
+            ...(process.env.XDG_RUNTIME_DIR ? { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR } : {}),
             XMODIFIERS: "@im=none",
             GTK_IM_MODULE: "none",
             QT_IM_MODULE: "none",
