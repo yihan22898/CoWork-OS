@@ -317,7 +317,7 @@ describe("PersonalityManager", () => {
       expect(defaults.activePersonality).toBe("professional");
       expect(defaults.customPrompt).toBe("");
       expect(defaults.customName).toBe("Custom Assistant");
-      expect(defaults.agentName).toBe("CoWork");
+      expect(defaults.agentName).toBe("Pan Mee");
     });
 
     it("should return a new object each time", () => {
@@ -410,7 +410,7 @@ describe("PersonalityManager - agent name", () => {
   describe("getAgentName", () => {
     it("should return default name when no name is set", () => {
       const name = PersonalityManager.getAgentName();
-      expect(name).toBe("CoWork");
+      expect(name).toBe("Pan Mee");
     });
 
     it("should return custom name when set", () => {
@@ -426,7 +426,7 @@ describe("PersonalityManager - agent name", () => {
       PersonalityManager.clearCache();
 
       const name = PersonalityManager.getAgentName();
-      expect(name).toBe("CoWork");
+      expect(name).toBe("Pan Mee");
     });
   });
 
@@ -450,13 +450,13 @@ describe("PersonalityManager - agent name", () => {
     it("should use default name for empty input", () => {
       PersonalityManager.setAgentName("");
 
-      expect(mockStoredSettings.agentName).toBe("CoWork");
+      expect(mockStoredSettings.agentName).toBe("Pan Mee");
     });
 
     it("should use default name for whitespace-only input", () => {
       PersonalityManager.setAgentName("   ");
 
-      expect(mockStoredSettings.agentName).toBe("CoWork");
+      expect(mockStoredSettings.agentName).toBe("Pan Mee");
     });
   });
 
@@ -465,8 +465,8 @@ describe("PersonalityManager - agent name", () => {
       const prompt = PersonalityManager.getIdentityPrompt();
 
       expect(prompt).toContain("YOUR IDENTITY:");
-      expect(prompt).toContain("You are CoWork");
-      expect(prompt).toContain("CoWork OS");
+      expect(prompt).toContain("You are Pan Mee");
+      expect(prompt).toContain("Pan Mee OS");
       expect(prompt).toContain("Do NOT claim to be Claude");
     });
 
